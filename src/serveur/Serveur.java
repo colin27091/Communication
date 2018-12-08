@@ -65,7 +65,11 @@ public class Serveur {
                     while(true){
                         
                         try {
-                            message = in.readLine();
+                            
+                            while(in.readLine() != null){
+                                message += in.readLine();
+                            }
+                   
                         } catch (IOException ex) {
                             Logger.getLogger(Serveur.class.getName()).log(Level.SEVERE, null, ex);
                         }
