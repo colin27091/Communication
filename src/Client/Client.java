@@ -2,12 +2,16 @@ package Client;
 
 import java.awt.RenderingHints.Key;
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.InvalidKeyException;
@@ -23,6 +27,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.xml.bind.DatatypeConverter;
+
 import serveur.Serveur;
 
 /**
@@ -37,13 +43,14 @@ public class Client {
         String serverName;
         int port;
         Socket socket;
-        final BufferedReader in;//reception message du serveur
-        final PrintWriter out;//envoie message au serveur
+        final InputStream in;//reception message du serveur
+        final OutputStream out;//envoie message au serveur
         final Scanner scan = new Scanner(System.in);//lecture clavier
         final Scanner word = new Scanner(System.in);//lecture clavier pour message
-        KeyGenerator generator;//generateur de clé
+        
         SecretKey key;//clé généré
-        ObjectOutputStream outKey;//outter permettant d'écrire la clé dans un fichier
+        ObjectInputStream inKey;//outter permettant de lire la cl� dans un fichier
+
         
         
         
@@ -59,20 +66,15 @@ public class Client {
             System.out.println("Connection etablished");
             
             
-            //generation de la clé
-            generator = KeyGenerator.getInstance("AES");//utilisation d'une clé symetrique AES
-            key = generator.generateKey();
-            //fin generation
-            
-            //exportation de la clé vers un fichier, ici  KeyFile.xx
-            outKey = new ObjectOutputStream(new FileOutputStream("KeyFile.xx"));
-            outKey.writeObject(key);
-            outKey.close();
-            //fin de l'exportation
+          //lecture importation de la cl� depuis un fichier
+            inKey = new ObjectInputStream(new FileInputStream("KeyFile.xx"));
+            key = (SecretKey) inKey.readObject();//stockage de la cl�
+            //fin d'importation
+            System.out.println(key);
             
             //definition des outils d'echange avec le serveur
-            out = new PrintWriter(socket.getOutputStream());
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = socket.getOutputStream();
+            in = socket.getInputStream();           
             //fin definition
             
             
@@ -92,13 +94,14 @@ public class Client {
                         try {
                             Cipher cipher;//outils de cryptage et de decryptage
                             cipher = Cipher.getInstance("AES");//clé symetrique AES
-                            System.out.println(message);
                             byte[] toCrypt = message.getBytes();//transformation du message en byte[] avant cryptage
                             cipher.init(Cipher.ENCRYPT_MODE, key);//preparation du cipher pour crypter
                             byte[] crypted = cipher.doFinal(toCrypt);//byte[] crypté
-                            System.out.println("( "+ toCrypt + " -> "+ crypted +" )");
-                            out.println(crypted);//envoie du message crypté au serveur
+                            out.write(crypted.length);//envoie de la longueur du cryptage
+                            out.write(crypted);//envoie du message crypté au serveur
                             out.flush();
+                            System.out.println("( "+ new String(toCrypt) + " -> "+ new String(crypted) +" )");
+
                             
                             
                         } catch (Exception ex) {
@@ -108,7 +111,7 @@ public class Client {
                         
                         
                         
-                    }System.exit(-1);
+                    }System.exit(0);
                    
                 }
             });
@@ -120,14 +123,21 @@ public class Client {
                 public void run() {
                     
                     while(true){
-                        
-                        
+ 
                         try{
                             
-                            byte[] crypted = in.readLine().getBytes();
+                            int longueur = in.read();//reconstitution du byte[] crypté
+                            byte[] crypted = new byte[longueur];
+                            for(int i=0; i < longueur; i++){
+                                in.read(crypted, i, 1);
+                            }
+                            
+                            
+                            
                             Cipher cipher = Cipher.getInstance("AES");
                             cipher.init(Cipher.DECRYPT_MODE, key);
                             byte[] uncrypted = cipher.doFinal(crypted);
+                           System.out.println("( " + new String(crypted) + " -> " + new String(uncrypted) +" )");
                             String message = new String(uncrypted);
                             System.out.println("Serveur : " + message);
 
@@ -137,11 +147,12 @@ public class Client {
                         }
                         
                         
-                    }System.exit(-1);
+                    }System.exit(0);
                     
                 }
             });
             receive.start();
+            
             
             
             

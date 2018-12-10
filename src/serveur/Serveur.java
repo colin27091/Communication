@@ -1,29 +1,17 @@
 package serveur;
 
-import java.awt.RenderingHints.Key;
-import java.io.BufferedReader;
-import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.ObjectInput;
-import java.io.PrintWriter;
+import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 
-import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import javax.crypto.KeyGenerator;
 
 /**
  *
@@ -37,38 +25,50 @@ public class Serveur {
         ServerSocket serverSocket;
         Socket socket;
         int port;
-        final BufferedReader in;
-        final PrintWriter out;
+        final InputStream in;
+        final OutputStream out;
         final Scanner scan = new Scanner(System.in);//lecture clavier
         final Scanner word = new Scanner(System.in);//lecture clavier pour message
-        ObjectInputStream inKey;//outter permettant de lire la clé dans un fichier
+        ObjectOutputStream outKey;//outter permettant d'Ã©crire la clÃ© dans un fichier
         SecretKey key;
+        KeyGenerator generator;//generateur de clÃ©
         
         try {
         	
             //debut mise en plase du server
             System.out.print("Port : ");
-            port = scan.nextInt();//port demander � l'uilisateur
+            port = scan.nextInt();//port demandé � l'uilisateur
             System.out.println();
         	
+            
+            
+            //generation de la clÃ©
+            generator = KeyGenerator.getInstance("AES");//utilisation d'une clÃ© symetrique AES
+            key = generator.generateKey();
+            //fin generation
+            
+            
+            System.out.println(key.toString());
+            //exportation de la clÃ© vers un fichier, ici  KeyFile.xx
+            outKey = new ObjectOutputStream(new FileOutputStream("KeyFile.xx"));
+            outKey.writeObject(key);
+            outKey.close();
+            //fin de l'exportation
+            
+            //mise en place du serveur
             serverSocket = new ServerSocket(port);//ouverture du port choisi
             socket = serverSocket.accept();//accepte les connexions client
             //fin mise en place du server
-                
+            
             //connexion d'un client
             System.out.println("Connexion de "+ socket.getInetAddress());
-                
-            //lecture importation de la clé depuis un fichier
-            inKey = new ObjectInputStream(new FileInputStream("KeyFile.xx"));
-            key = (SecretKey) inKey.readObject();//stockage de la clé
-            //fin d'importation
-                
+
             System.out.println("Clé partagé");
                 
                 
             //definition des outils d'echange avec le serveur
-            out = new PrintWriter(socket.getOutputStream());
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = socket.getOutputStream();
+            in = socket.getInputStream();
             //fin definition
                 
         	
@@ -91,9 +91,11 @@ public class Serveur {
                             byte[] toCrypt = message.getBytes();//transformation du message en byte[] avant cryptage
                             cipher.init(Cipher.ENCRYPT_MODE, key);//preparation du cipher pour crypter
                             byte[] crypted = cipher.doFinal(toCrypt);//byte[] crypté
-                            System.out.println("( "+ toCrypt + " -> "+ crypted +" )");
-                            out.println(crypted);//envoie du message crypté au serveur
+                            out.write(crypted.length);//envoie de la longueur du cryptage
+                            out.write(crypted);//envoie du message crypté au serveur
                             out.flush();
+                            System.out.println("( "+ new String(toCrypt) + " -> "+ new String(crypted) +" )");
+
                             
                             
                         } catch (Exception ex) {
@@ -103,7 +105,7 @@ public class Serveur {
                         
                         
                         
-                    }System.exit(-1);
+                    }System.exit(0);
                    
                 }
             });
@@ -119,13 +121,27 @@ public class Serveur {
                         
                         try{
                             
-                            String crypted = in.readLine();
+                            int longueur = in.read();
+                            
+                            byte[] crypted = new byte[longueur];
+                            
+                            
+                            for(int i=0; i < longueur; i++){
+                                in.read(crypted, i, 1);
+                            }
+                            
+                            
                             
                             Cipher cipher = Cipher.getInstance("AES");
+                            
                             cipher.init(Cipher.DECRYPT_MODE, key);
-                            byte[] uncrypted = cipher.doFinal(crypted.getBytes());
+                            
+                            byte[] uncrypted = cipher.doFinal(crypted);
+                            
+                           System.out.println("( " + new String(crypted) + " -> " + new String(uncrypted) +" )");
+                           
                             String message = new String(uncrypted);
-                            System.out.println("Serveur : " + message);
+                            System.out.println("Client : " + message);
 
                         } catch (Exception ex){
                             System.out.println("Receive error : "+ex);
@@ -133,14 +149,13 @@ public class Serveur {
                         }
                         
                         
-                    }System.exit(-1);
+                    }System.exit(0);
                     
                 }
             });
             receive.start();
             
-            
-            
+           
            
         } catch (Exception ex) {
         	
